@@ -23,21 +23,56 @@ import (
 	"gotest.tools/v3/assert"
 )
 
-func TestServiceHash(t *testing.T) {
-	hash1, err := ServiceHash(serviceConfig(1))
+func TestServiceHashWithAllValuesTheSame(t *testing.T) {
+	hash1, err := ServiceHash(projectConfig("a", "b"), serviceConfig("myContext1", "always", 1))
 	assert.NilError(t, err)
-	hash2, err := ServiceHash(serviceConfig(2))
+	hash2, err := ServiceHash(projectConfig("a", "b"), serviceConfig("myContext1", "always", 1))
 	assert.NilError(t, err)
 	assert.Equal(t, hash1, hash2)
 }
 
-func serviceConfig(replicas int) types.ServiceConfig {
+func TestServiceHashWithIgnorableValues(t *testing.T) {
+	hash1, err := ServiceHash(&types.Project{}, serviceConfig("myContext1", "always", 1))
+	assert.NilError(t, err)
+	hash2, err := ServiceHash(&types.Project{}, serviceConfig("myContext2", "never", 2))
+	assert.NilError(t, err)
+	assert.Equal(t, hash1, hash2)
+}
+
+func TestServiceHashWithChangedConfig(t *testing.T) {
+	hash1, err := ServiceHash(projectConfig("myConfigSource", "a"), serviceConfig("myContext1", "always", 1))
+	assert.NilError(t, err)
+	hash2, err := ServiceHash(projectConfig("myConfigSource", "b"), serviceConfig("myContext2", "never", 2))
+	assert.NilError(t, err)
+	assert.Assert(t, hash1 != hash2)
+}
+
+func projectConfig(configName, configContent string) *types.Project {
+	return &types.Project{
+		Configs: types.Configs{
+			configName: types.ConfigObjConfig{
+				Content: configContent,
+			},
+		},
+	}
+}
+
+func serviceConfig(buildContext, pullPolicy string, replicas int) types.ServiceConfig {
 	return types.ServiceConfig{
-		Scale: &replicas,
+		Build: &types.BuildConfig{
+			Context: buildContext,
+		},
+		PullPolicy: pullPolicy,
+		Scale:      &replicas,
 		Deploy: &types.DeployConfig{
 			Replicas: &replicas,
 		},
 		Name:  "foo",
 		Image: "bar",
+		Configs: []types.ServiceConfigObjConfig{
+			{
+				Source: "myConfigSource",
+			},
+		},
 	}
 }
